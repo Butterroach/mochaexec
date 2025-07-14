@@ -106,7 +106,7 @@ if not os.path.exists(config_path):
 
     with open(config_path, "w") as f:
         f.write(
-            """prompt = "{shorthand} {version} | {username} | password here!!!: "  # you can use the variables shorthand (mchx), name (mochaexec), version, username, hostname, time, date, uid, and cwd
+            """prompt = "{shorthand} {version} | {username} | password here!!!: "  # you can use the variables shorthand (mchx), name (mochaexec), version, and username
     prompt_start_color = [0, 220, 230]  # RGB, start of the gradient
     prompt_end_color = [220, 0, 220]  # RGB, end of the gradient (set this the same as the start color to disable gradients)
     """
