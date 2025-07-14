@@ -40,7 +40,7 @@ It's not my fault your system is broken.
 
 ### How do I update it?
 
-Just reinstall it. You won't lose any data.
+Just reinstall it. You won't lose any data IF YOU UPDATE THE INSTALLER SCRIPT TOO OH MY GOD DON'T JUST USE THE OLD SCRIPT
 
 ### I'm an actual Rust programmer and I read the code. It's obvious you don't know what you're doing.
 
