@@ -88,23 +88,26 @@ except Exception as e:
 adults_path = "/etc/mochaexec.d/responsible_adults"
 os.makedirs(os.path.dirname(adults_path), exist_ok=True)
 
-flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-mode = 0o644
+if not os.path.exists(adults_path):
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    mode = 0o644
 
-fd = os.open(adults_path, flags, mode)
-os.close(fd)
+    fd = os.open(adults_path, flags, mode)
+    os.close(fd)
 
 config_path = "/etc/mochaexec.d/config.toml"
-with open(config_path, "w") as f:
-    f.write(
-        """prompt = "{shorthand} {version} | {username} | password here!!!: "  # you can use the variables shorthand (mchx), name (mochaexec), version, username, hostname, time, date, uid, and cwd
-prompt_start_color = [0, 220, 230]  # RGB, start of the gradient
-prompt_end_color = [220, 0, 220]  # RGB, end of the gradient (set this the same as the start color to disable gradients)
-"""
-    )
 
-flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-mode = 0o644
+if not os.path.exists(config_path):
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    mode = 0o644
 
-fd = os.open(config_path, flags, mode)
-os.close(fd)
+    fd = os.open(config_path, flags, mode)
+    os.close(fd)
+
+    with open(config_path, "w") as f:
+        f.write(
+            """prompt = "{shorthand} {version} | {username} | password here!!!: "  # you can use the variables shorthand (mchx), name (mochaexec), version, username, hostname, time, date, uid, and cwd
+    prompt_start_color = [0, 220, 230]  # RGB, start of the gradient
+    prompt_end_color = [220, 0, 220]  # RGB, end of the gradient (set this the same as the start color to disable gradients)
+    """
+        )
