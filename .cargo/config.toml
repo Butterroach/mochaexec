@@ -1,0 +1,16 @@
+[build]
+rustflags = [
+    "-C", "embed-bitcode=yes",
+    "-C", "link-args=-Wl,-z,relro,-z,now",
+    "-C", "opt-level=2",
+    "-C", "lto",
+    "-C", "codegen-units=1",
+    "-C", "panic=abort",
+    "-C", "overflow-checks=on",
+]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-args=-fstack-protector-strong -D_FORTIFY_SOURCE=2"]
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
