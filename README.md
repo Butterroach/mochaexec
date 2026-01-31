@@ -4,6 +4,10 @@
 
 ***
 
+![Screenshot of mochaexec prompt while typing](screenshot-typing.png)
+
+![Screenshot of mochaexec output](screenshot.png)
+
 mochaexec (mchx) is an open-source, fancy-looking sudo alternative. Written
 in memory-safe Rust, it uses PAM for native, secure authentication, allowing
 you to temporarily run commands as the root user, without any worries about
