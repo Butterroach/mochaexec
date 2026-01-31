@@ -11,10 +11,6 @@ malicious actors. In addition, mochaexec contains unprofessional messages
 that add personality to your work environment, without compromising on
 functionality.
 
-> [!WARNING]
-> You can't pipe mochaexec to other programs. I know how disappointing it is, but you're gonna have to deal with yucky
-> sudo when piping for now. I'm working on a fix for this that doesn't compromise the fancy masked/colored prompts.
-
 ### How to install?
 
 Do not grab the binary from the release and shove it into /opt. Do not grab
@@ -22,9 +18,12 @@ the binary from the release and shove it into /opt. Do not grab the binary
 from the release and shove it into /opt. Do NOT grab the binary from the
 release and shove it into /opt. DO NOT GRAB THE BINARY FROM THE RELEASE A
 
-Installing mochaexec is quite easy! Simply download the
-[installer script](https://raw.githubusercontent.com/Butterroach/mochaexec/refs/heads/master/src/installer.py)
-and run it with Python as root. Wait for it to finish and you're done!
+Installing mochaexec is quite easy! Simply run
+`curl -fsSL https://raw.githubusercontent.com/Butterroach/mochaexec/refs/heads/master/src/installer.py | sudo python3`
+and wait.
+
+Afterwards, you can try running `mchx whoami` to confirm if it works.
+mochaexec installs in `/bin/mchx` by default, and its config files are available in `/etc/mochaexec.d`.
 
 ### How do I run it as root?
 

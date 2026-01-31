@@ -21,3 +21,4 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pub const PROJECT_NAME: &str = "mochaexec";
 pub const PROJECT_NAME_SHORTHAND: &str = "mchx";
 // pub const PROJECT_BRAND_SLOGAN: &str = "for responsible adults only.";
+pub const CONFIG_DIR: &str = "/etc/mochaexec.d";

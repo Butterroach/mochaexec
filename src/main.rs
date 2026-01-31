@@ -18,51 +18,85 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 mod branding;
 
+use nix::sys::termios::{LocalFlags, SetArg, tcgetattr, tcsetattr};
 use nix::unistd::{Uid, User, execvp, setuid};
-use owo_colors::OwoColorize;
 use pam_client::conv_mock::Conversation;
 use pam_client::{Context, Flag};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::fs;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::{self, BufReader, Write};
-use std::{thread, time::Duration};
 use strfmt::strfmt;
 use termion::input::TermRead;
-use termion::raw::IntoRawMode;
+use zeroize::Zeroize;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
+#[serde(default)]
 struct Config {
     prompt: String,
     prompt_start_color: [u8; 3],
     prompt_end_color: [u8; 3],
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            prompt: "{shorthand} {version} | {username}: ".to_string(),
+            prompt_start_color: [244, 10, 10],
+            prompt_end_color: [255, 40, 40],
+        }
+    }
+}
+
+fn load_config(config: &str) -> Result<Config, Box<dyn std::error::Error>> {
+    match toml::from_str::<Config>(&config) {
+        Ok(config) => Ok(config),
+        Err(e) => {
+            eprintln!("failed to parse config AHHHH!!! {}", e);
+            Ok(Config::default())
+        }
+    }
+}
+
 fn gradient_text(text: &str, start_rgb: (u8, u8, u8), end_rgb: (u8, u8, u8)) -> String {
     let len = text.chars().count().max(1) as f32;
-    text.chars()
-        .enumerate()
-        .map(|(i, c)| {
-            let ratio = i as f32 / (len - 1.0);
-            let r = start_rgb.0 as f32 + (end_rgb.0 as f32 - start_rgb.0 as f32) * ratio;
-            let g = start_rgb.1 as f32 + (end_rgb.1 as f32 - start_rgb.1 as f32) * ratio;
-            let b = start_rgb.2 as f32 + (end_rgb.2 as f32 - start_rgb.2 as f32) * ratio;
-            c.truecolor(r as u8, g as u8, b as u8).to_string()
-        })
-        .collect::<String>()
+    if len < 2.0 {
+        let (r, g, b) = end_rgb;
+        format!("\x1b[38;2;{r};{g};{b}m{text}\x1b[0m")
+    } else {
+        text.chars()
+            .enumerate()
+            .map(|(i, c)| {
+                let ratio = i as f32 / (len - 1.0);
+                let r =
+                    (start_rgb.0 as f32 + (end_rgb.0 as f32 - start_rgb.0 as f32) * ratio) as u8;
+                let g =
+                    (start_rgb.1 as f32 + (end_rgb.1 as f32 - start_rgb.1 as f32) * ratio) as u8;
+                let b =
+                    (start_rgb.2 as f32 + (end_rgb.2 as f32 - start_rgb.2 as f32) * ratio) as u8;
+                format!("\x1b[38;2;{r};{g};{b}m{c}\x1b[0m")
+            })
+            .collect::<String>()
+    }
 }
 
 fn prompt_password(prompt: &str) -> io::Result<String> {
-    let tty = File::open("/dev/tty")?;
-    let tty_reader = BufReader::new(tty);
-    let mut stdout = io::stdout().into_raw_mode()?;
-
-    print!("{}", prompt);
-    stdout.flush()?;
-
     let mut password = String::new();
+    let mut tty = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
+    let tty_reader = BufReader::new(tty.try_clone()?);
+
+    let mut term = tcgetattr(&tty)?;
+    let original = term.clone();
+
+    term.local_flags.remove(LocalFlags::ECHO);
+    term.local_flags.remove(LocalFlags::ICANON);
+
+    tcsetattr(&tty, SetArg::TCSANOW, &term)?;
+
+    write!(tty, "{}", format!("{}", prompt))?;
+    tty.flush()?;
 
     for key in tty_reader.keys() {
         let key = key.map_err(|e| io::Error::new(io::ErrorKind::Other, e));
@@ -70,27 +104,29 @@ fn prompt_password(prompt: &str) -> io::Result<String> {
             Ok(termion::event::Key::Char('\n')) | Ok(termion::event::Key::Char('\r')) => break,
             Ok(termion::event::Key::Backspace) => {
                 if password.pop().is_some() {
-                    print!("\x08 \x08");
-                    stdout.flush()?;
+                    write!(tty, "\x08")?;
+                    tty.flush()?;
                 }
             }
             Ok(termion::event::Key::Char(c)) => {
                 password.push(c);
-                print!("*");
-                stdout.flush()?;
+                write!(tty, "*")?;
+                tty.flush()?;
             }
             Err(e) => return Err(e),
             _ => {}
         }
     }
 
-    println!();
+    tcsetattr(&tty, SetArg::TCSANOW, &original)?;
+
+    writeln!(tty, "{}", format!("\r\x1b[2K{}\r", prompt))?;
+
     Ok(password)
 }
 
 fn authenticate(username: &str, config: &Config) -> Result<(), pam_client::Error> {
     let retries = 5;
-    let cooldown = Duration::from_secs(5);
     let mut last_err = None;
 
     let mut vars = HashMap::new();
@@ -103,13 +139,13 @@ fn authenticate(username: &str, config: &Config) -> Result<(), pam_client::Error
     vars.insert("name".to_string(), branding::PROJECT_NAME.to_string());
 
     for attempt in 1..=retries {
-        let password = prompt_password(&gradient_text(
+        let mut password = prompt_password(&gradient_text(
             &*strfmt(&*config.prompt, &vars).unwrap(),
             <(u8, u8, u8)>::from(config.prompt_start_color),
             <(u8, u8, u8)>::from(config.prompt_end_color),
         ))
         .unwrap(); // i don't care if this panics i give up trying to use the stupid question mark
-        let conv = Conversation::with_credentials(username, password);
+        let conv = Conversation::with_credentials(username, &password);
         let mut context = Context::new("login", Some(username), conv)?;
 
         match context.authenticate(Flag::NONE) {
@@ -121,15 +157,15 @@ fn authenticate(username: &str, config: &Config) -> Result<(), pam_client::Error
             Err(e) => last_err = Some(e),
         }
 
+        password.zeroize();
+
         print!("\x1b[2K\r");
         io::stdout().flush().unwrap();
 
         if attempt < retries {
-            thread::sleep(cooldown);
-            println!("wrong lmao")
+            eprintln!("wrong lmao")
         }
     }
-
     Err(last_err.expect("no error??? after failed auth????"))
 }
 
@@ -145,50 +181,53 @@ fn read_allowed_users(path: &str) -> Result<Vec<String>, io::Error> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config: Config;
-    match fs::read_to_string("/etc/mochaexec.d/config.toml") {
-        Ok(content) => {
-            config = toml::from_str(&content)?;
-        }
-        Err(_e) => {
-            println!("no config file!!!! that means your setup is likely BROKEN. GO AWAY!!!");
-            std::process::exit(0x1);
-        }
-    }
-
-    match read_allowed_users("/etc/mochaexec.d/responsible_adults") {
-        Ok(users) => {
-            let username = &User::from_uid(nix::unistd::getuid())
-                .expect("getting uid failed for some reason")
-                .expect("current user is a ghost and their uid does not exist")
-                .name;
-            if users.contains(username) {
-                match authenticate(username, &config) {
-                    Ok(_) => {}
-                    Err(_e) => {
-                        println!("loser");
-                        std::process::exit(0x1);
-                    }
-                }
-            } else {
-                println!("bruh gtfo my system");
-                std::process::exit(0x1);
+    if nix::unistd::getuid() != Uid::from_raw(0) {
+        let config: Config;
+        match fs::read_to_string(format!("{}/config.toml", branding::CONFIG_DIR)) {
+            Ok(content) => {
+                config = load_config(&content)?;
+            }
+            Err(_e) => {
+                eprintln!("no config file!!!! that means your setup is likely BROKEN!!!! AHHH");
+                config = load_config("")?;
             }
         }
-        Err(_e) => {
-            println!(
-                "failed to get users!!! :( are you sure /etc/mochaexec.d/responsible_adults exists?"
-            );
-            std::process::exit(0x1);
+
+        match read_allowed_users(&format!("{}/responsible_adults", branding::CONFIG_DIR)) {
+            Ok(users) => {
+                let username = &User::from_uid(nix::unistd::getuid())
+                    .expect("getting uid failed for some reason")
+                    .expect("current user is a ghost and their uid does not exist")
+                    .name;
+                if users.contains(username) {
+                    match authenticate(username, &config) {
+                        Ok(_) => {}
+                        Err(_e) => {
+                            println!("loser");
+                            std::process::exit(0x1);
+                        }
+                    }
+                } else {
+                    eprintln!("bruh gtfo my system");
+                    std::process::exit(0x1);
+                }
+            }
+            Err(_e) => {
+                eprintln!(
+                    "failed to get users!!! :( are you sure {}/responsible_adults exists?",
+                    branding::CONFIG_DIR
+                );
+                std::process::exit(0x1);
+            }
         }
     }
 
     if setuid(Uid::from_raw(0)).is_err() {
-        println!(
+        eprintln!(
             "setuid failed!!! are you sure {} has the correct permissions?",
             branding::PROJECT_NAME
         );
-        println!(
+        eprintln!(
             "{}'s binary should have been set up with the perms 4755 (rwsr-xr-x)",
             branding::PROJECT_NAME
         );
