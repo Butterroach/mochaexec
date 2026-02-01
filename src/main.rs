@@ -28,6 +28,7 @@ use std::ffi::CString;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::{self, BufReader, Write};
+use std::process;
 use strfmt::strfmt;
 use termion::input::TermRead;
 use zeroize::Zeroize;
@@ -107,6 +108,11 @@ fn prompt_password(prompt: &str) -> io::Result<String> {
                     write!(tty, "\x08 \x08")?;
                     tty.flush()?;
                 }
+            }
+            Ok(termion::event::Key::Ctrl('c')) | Ok(termion::event::Key::Esc) => {
+                let _ = tcsetattr(&tty, SetArg::TCSANOW, &original);
+                writeln!(tty, "{}", format!("\r\x1b[2K{}\r", prompt))?;
+                process::exit(130);
             }
             Ok(termion::event::Key::Char(c)) => {
                 password.push(c);
@@ -204,12 +210,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Ok(_) => {}
                         Err(_e) => {
                             println!("loser");
-                            std::process::exit(0x1);
+                            process::exit(0x1);
                         }
                     }
                 } else {
                     eprintln!("bruh gtfo my system");
-                    std::process::exit(0x1);
+                    process::exit(0x1);
                 }
             }
             Err(_e) => {
@@ -217,7 +223,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "failed to get users!!! :( are you sure {}/responsible_adults exists?",
                     branding::CONFIG_DIR
                 );
-                std::process::exit(0x1);
+                process::exit(0x1);
             }
         }
     }
@@ -231,22 +237,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "{}'s binary should have been set up with the perms 4755 (rwsr-xr-x)",
             branding::PROJECT_NAME
         );
-        std::process::exit(0x1);
+        process::exit(0x1);
     }
 
     let args: Vec<CString> = std::env::args()
         .skip(1)
-        .map(|arg| CString::new(arg).unwrap_or_else(|_| std::process::exit(0x2)))
+        .map(|arg| CString::new(arg).unwrap_or_else(|_| process::exit(0x2)))
         .collect();
 
     if args.is_empty() {
-        std::process::exit(0x0);
+        process::exit(0x0);
     }
 
     let command = args[0].clone();
 
     if execvp(&command, &args).is_err() {
-        std::process::exit(0x3);
+        process::exit(0x3);
     }
     Ok(())
 }
