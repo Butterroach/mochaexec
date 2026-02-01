@@ -1,6 +1,6 @@
 [package]
 name = "mochaexec"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2024"
 description = "sudo if it was actually good. for responsible adults only."
 readme = "README.md"  # who is the idiot that doesn't know this???

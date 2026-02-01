@@ -104,7 +104,7 @@ fn prompt_password(prompt: &str) -> io::Result<String> {
             Ok(termion::event::Key::Char('\n')) | Ok(termion::event::Key::Char('\r')) => break,
             Ok(termion::event::Key::Backspace) => {
                 if password.pop().is_some() {
-                    write!(tty, "\x08")?;
+                    write!(tty, "\x08 \x08")?;
                     tty.flush()?;
                 }
             }
