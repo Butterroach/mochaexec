@@ -23,7 +23,7 @@ from the release and shove it into /opt. Do NOT grab the binary from the
 release and shove it into /opt. DO NOT GRAB THE BINARY FROM THE RELEASE A
 
 Installing mochaexec is quite easy! Simply run
-`curl -fsSL https://raw.githubusercontent.com/Butterroach/mochaexec/refs/heads/master/src/installer.py | sudo python3`
+`curl -fsSL https://raw.githubusercontent.com/Butterroach/mochaexec/refs/heads/master/src/installer.py -o mochaexec_installer.py && sudo python3 mochaexec_installer.py && rm mochaexec_installer.py`
 and wait.
 
 Afterwards, you can try running `mchx whoami` to confirm if it works.
